@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="NtpTick.Tests/NtpTick.Tests.csproj" Id="d0c1d8d5-fe5c-4126-9410-a3c5c37b49d8" />
+  <Project Path="NtpTick/NtpTick.csproj" />
+</Solution>

@@ -25,9 +25,9 @@ public class EndToEndTests
         Assert.That(response.Precision, Is.GreaterThan(-30));
         Assert.That(response.RootDelay, Is.GreaterThan(0));
         Assert.That(response.RootDispersion, Is.GreaterThan(0));
-        Assert.That(response.ReferenceTimestampRaw, Is.GreaterThan(0));
-        Assert.That(response.ReceiveTimestampRaw, Is.GreaterThan(0));
-        Assert.That(response.TransmitTimestampRaw, Is.GreaterThan(0));
+        Assert.That(response.ReferenceTimestamp, Is.Not.Default);
+        Assert.That(response.ReceiveTimestamp, Is.Not.Default);
+        Assert.That(response.TransmitTimestamp, Is.Not.Default);
     }
 
     [Test]

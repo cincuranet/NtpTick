@@ -34,33 +34,10 @@ public class NtpPacket
 
     public NtpReferenceId ReferenceId { get; set; }
     
-    public ulong ReferenceTimestampRaw { get; set; }
-    public DateTime ReferenceTimestamp
-    {
-        get => RawTimestampToDateTime(ReferenceTimestampRaw, DateTime.UtcNow); 
-        set => ReferenceTimestampRaw = RawTimestampFromDateTime(value);
-    }
-    
-    public ulong OriginTimestampRaw { get; set; }
-    public DateTime OriginTimestamp
-    {
-        get => RawTimestampToDateTime(OriginTimestampRaw, DateTime.UtcNow); 
-        set => OriginTimestampRaw = RawTimestampFromDateTime(value);
-    }
-
-    public ulong ReceiveTimestampRaw { get; set; }
-    public DateTime ReceiveTimestamp
-    {
-        get => RawTimestampToDateTime(ReceiveTimestampRaw, DateTime.UtcNow); 
-        set => ReceiveTimestampRaw = RawTimestampFromDateTime(value);
-    }
-
-    public ulong TransmitTimestampRaw { get; set; }
-    public DateTime TransmitTimestamp
-    {
-        get => RawTimestampToDateTime(TransmitTimestampRaw, DateTime.UtcNow); 
-        set => TransmitTimestampRaw = RawTimestampFromDateTime(value);
-    }
+    public NtpTimestamp ReferenceTimestamp { get; set; }
+    public NtpTimestamp OriginTimestamp { get; set; }
+    public NtpTimestamp ReceiveTimestamp { get; set; }
+    public NtpTimestamp TransmitTimestamp { get; set; }
 
     public void WriteTo(Span<byte> buffer)
     {
@@ -81,10 +58,10 @@ public class NtpPacket
         for (var i = 0; i < NtpReferenceId.Length; i++)
             buffer[12 + i] = ReferenceId[i];
 
-        BinaryPrimitives.WriteUInt64BigEndian(buffer[16..], ReferenceTimestampRaw);
-        BinaryPrimitives.WriteUInt64BigEndian(buffer[24..], OriginTimestampRaw);
-        BinaryPrimitives.WriteUInt64BigEndian(buffer[32..], ReceiveTimestampRaw);
-        BinaryPrimitives.WriteUInt64BigEndian(buffer[40..], TransmitTimestampRaw);
+        BinaryPrimitives.WriteUInt64BigEndian(buffer[16..], ReferenceTimestamp);
+        BinaryPrimitives.WriteUInt64BigEndian(buffer[24..], OriginTimestamp);
+        BinaryPrimitives.WriteUInt64BigEndian(buffer[32..], ReceiveTimestamp);
+        BinaryPrimitives.WriteUInt64BigEndian(buffer[40..], TransmitTimestamp);
     }   
 
     public static NtpPacket ReadFrom(ReadOnlySpan<byte> data)
@@ -105,20 +82,20 @@ public class NtpPacket
             RootDispersion = BinaryPrimitives.ReadUInt32BigEndian(data[8..]),
             ReferenceId = new NtpReferenceId(data[12..16]),
 
-            ReferenceTimestampRaw = BinaryPrimitives.ReadUInt64BigEndian(data[16..]),
-            OriginTimestampRaw = BinaryPrimitives.ReadUInt64BigEndian(data[24..]),
-            ReceiveTimestampRaw = BinaryPrimitives.ReadUInt64BigEndian(data[32..]),
-            TransmitTimestampRaw = BinaryPrimitives.ReadUInt64BigEndian(data[40..])
+            ReferenceTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[16..]),
+            OriginTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[24..]),
+            ReceiveTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[32..]),
+            TransmitTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[40..])
         };
     }
 
     public DateTime CalculateSynchronizedTime(DateTime destinationTimestamp)
     {
-        AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
+        NtpTimestamp.AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
 
-        var t1 = OriginTimestamp;
-        var t2 = ReceiveTimestamp;
-        var t3 = TransmitTimestamp;
+        var t1 = OriginTimestamp.ToDateTime(DateTime.UtcNow);
+        var t2 = ReceiveTimestamp.ToDateTime(DateTime.UtcNow);
+        var t3 = TransmitTimestamp.ToDateTime(DateTime.UtcNow);
         var t4 = destinationTimestamp;
 
         var offset = TimeSpan.FromTicks(
@@ -130,76 +107,19 @@ public class NtpPacket
 
     public TimeSpan CalculateRoundTripDelay(DateTime destinationTimestamp)
     {
-        AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
+        NtpTimestamp.AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
 
-        var t1 = OriginTimestamp;
-        var t2 = ReceiveTimestamp;
-        var t3 = TransmitTimestamp;
+        var t1 = OriginTimestamp.ToDateTime(DateTime.UtcNow);
+        var t2 = ReceiveTimestamp.ToDateTime(DateTime.UtcNow);
+        var t3 = TransmitTimestamp.ToDateTime(DateTime.UtcNow);
         var t4 = destinationTimestamp;
 
         return TimeSpan.FromTicks((t4 - t1).Ticks - (t3 - t2).Ticks);
-    }
-
-    public static ulong RawTimestampFromDateTime(DateTime dt)
-    {
-        AssertDateTimeKind(dt, nameof(dt));
-
-        var totalSeconds = (dt - NtpConstants.NtpEpoch).TotalSeconds;
-        if (totalSeconds < 0)
-            throw new ArgumentOutOfRangeException(nameof(dt), "The DateTime must be on or after January 1, 1900 UTC.");
-
-        var fullSeconds = (ulong)Math.Floor(totalSeconds);
-        var wireSeconds = fullSeconds % NtpConstants.EraSeconds;
-
-        var frac = (uint)((totalSeconds - Math.Floor(totalSeconds)) * NtpConstants.FractionScale);
-
-        return (wireSeconds << 32) | frac;
-    }
-
-    public static DateTime RawTimestampToDateTime(ulong timestamp, DateTime reference)
-    {
-        AssertDateTimeKind(reference, nameof(reference));
-
-        var seconds = (uint)(timestamp >> 32);
-        var fraction = (uint)timestamp;
-
-        var fracSeconds = fraction / NtpConstants.FractionScale;
-
-        var refSeconds = (ulong)(reference - NtpConstants.NtpEpoch).TotalSeconds;
-
-        var refEra = refSeconds / NtpConstants.EraSeconds;
-
-        var best = NtpConstants.NtpEpoch;
-        var bestDiff = double.MaxValue;
-        for (var era = refEra > 0 ? refEra - 1 : 0; era <= refEra + 1; era++)
-        {
-            var fullSeconds = era * NtpConstants.EraSeconds + seconds;
-
-            var candidate = NtpConstants.NtpEpoch
-                .AddSeconds(fullSeconds)
-                .AddSeconds(fracSeconds);
-
-            var diff = Math.Abs((candidate - reference).TotalSeconds);
-
-            if (diff < bestDiff)
-            {
-                bestDiff = diff;
-                best = candidate;
-            }
-        }
-
-        return best;
     }
 
     static void AssertSize(ReadOnlySpan<byte> data, string paramName)
     {
         if (data.Length < NtpConstants.PacketSize)
             throw new ArgumentException("Invalid NTP packet length.", paramName);
-    }
-
-    static void AssertDateTimeKind(DateTime dt, string paramName)
-    {
-        if (dt.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("The DateTime must be in UTC.", paramName);
     }
 }

@@ -55,8 +55,7 @@ public class NtpPacket
 
         BinaryPrimitives.WriteUInt32BigEndian(buffer[4..], RootDelay);
         BinaryPrimitives.WriteUInt32BigEndian(buffer[8..], RootDispersion);
-        for (var i = 0; i < NtpReferenceId.Length; i++)
-            buffer[12 + i] = ReferenceId[i];
+        ReferenceId.CopyTo(buffer[12..]);
 
         BinaryPrimitives.WriteUInt64BigEndian(buffer[16..], ReferenceTimestamp);
         BinaryPrimitives.WriteUInt64BigEndian(buffer[24..], OriginTimestamp);
@@ -80,7 +79,7 @@ public class NtpPacket
 
             RootDelay = BinaryPrimitives.ReadUInt32BigEndian(data[4..]),
             RootDispersion = BinaryPrimitives.ReadUInt32BigEndian(data[8..]),
-            ReferenceId = new NtpReferenceId(data[12..16]),
+            ReferenceId = new NtpReferenceId(data[12..]),
 
             ReferenceTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[16..]),
             OriginTimestamp = BinaryPrimitives.ReadUInt64BigEndian(data[24..]),
@@ -89,32 +88,28 @@ public class NtpPacket
         };
     }
 
-    public DateTime CalculateSynchronizedTime(DateTime destinationTimestamp)
+    public DateTimeOffset CalculateSynchronizedTime(DateTimeOffset destinationTimestamp, DateTimeOffset? referenceTimestamp = null)
     {
-        NtpTimestamp.AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
-
-        var t1 = OriginTimestamp.ToDateTime(DateTime.UtcNow);
-        var t2 = ReceiveTimestamp.ToDateTime(DateTime.UtcNow);
-        var t3 = TransmitTimestamp.ToDateTime(DateTime.UtcNow);
+        referenceTimestamp ??= DateTimeOffset.UtcNow;
+        var t1 = OriginTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
+        var t2 = ReceiveTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
+        var t3 = TransmitTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
         var t4 = destinationTimestamp;
 
-        var offset = TimeSpan.FromTicks(
-            ((t2 - t1).Ticks + (t3 - t4).Ticks) / 2
-        );
+        var offset = ((t2 - t1) + (t3 - t4)) / 2;
 
         return destinationTimestamp.Add(offset);
     }
 
-    public TimeSpan CalculateRoundTripDelay(DateTime destinationTimestamp)
+    public TimeSpan CalculateRoundTripDelay(DateTimeOffset destinationTimestamp, DateTimeOffset? referenceTimestamp = null)
     {
-        NtpTimestamp.AssertDateTimeKind(destinationTimestamp, nameof(destinationTimestamp));
-
-        var t1 = OriginTimestamp.ToDateTime(DateTime.UtcNow);
-        var t2 = ReceiveTimestamp.ToDateTime(DateTime.UtcNow);
-        var t3 = TransmitTimestamp.ToDateTime(DateTime.UtcNow);
+        referenceTimestamp ??= DateTimeOffset.UtcNow;
+        var t1 = OriginTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
+        var t2 = ReceiveTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
+        var t3 = TransmitTimestamp.ToDateTimeOffset((DateTimeOffset)referenceTimestamp);
         var t4 = destinationTimestamp;
 
-        return TimeSpan.FromTicks((t4 - t1).Ticks - (t3 - t2).Ticks);
+        return (t4 - t1) - (t3 - t2);
     }
 
     static void AssertSize(ReadOnlySpan<byte> data, string paramName)

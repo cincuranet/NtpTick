@@ -34,6 +34,6 @@ public class EndToEndTests
     public async Task GetTime_ReturnsSensibleTime()
     {
         var time = await _client.GetTime();
-        Assert.That(time, Is.EqualTo(DateTime.UtcNow).Within(TimeSpan.FromSeconds(5)));
+        Assert.That(time, Is.EqualTo(DateTimeOffset.UtcNow).Within(TimeSpan.FromSeconds(5)));
     }
 }

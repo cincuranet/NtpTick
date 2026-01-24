@@ -32,9 +32,9 @@ public class SimpleNtpClient
         }
     }
 
-    public async Task<DateTime> GetTime(CancellationToken cancellationToken = default)
+    public async Task<DateTimeOffset> GetTime(CancellationToken cancellationToken = default)
     {
-        var response = await Send(new NtpPacket { TransmitTimestamp = DateTime.UtcNow }, cancellationToken);
-        return response.CalculateSynchronizedTime(DateTime.UtcNow);
+        var response = await Send(new NtpPacket { TransmitTimestamp = DateTimeOffset.UtcNow }, cancellationToken);
+        return response.CalculateSynchronizedTime(DateTimeOffset.UtcNow);
     }
 }

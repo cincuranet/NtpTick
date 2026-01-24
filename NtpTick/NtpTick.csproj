@@ -8,7 +8,7 @@
   <PropertyGroup>
     <AssemblyTitle>NtpTick</AssemblyTitle>
     <PackageId>NtpTick</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Description>A simple NTP client library for .NET.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

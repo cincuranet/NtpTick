@@ -1,148 +1,70 @@
 ﻿using NUnit.Framework;
+using NUnit.Framework.Internal;
 
 namespace NtpTick.Tests;
 
 [TestFixture]
 public class NtpTimestampTests
 {
-    [Test]
-    public void NtpEpoch_ReturnsZero()
+    static IEnumerable<TestCaseData> FromULongSource()
+        => TimestampsSource(includeImpreciseDTOs: true).Select(x =>
+            new TestCaseData(x.valueULong, x.valueDTO, x.reference)
+                .SetArgDisplayNames(x.name));
+    [TestCaseSource(nameof(FromULongSource))]
+    public void FromULongTests(ulong value, DateTimeOffset expected, DateTimeOffset reference)
     {
-        var dto = new DateTimeOffset(1900, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        Assert.That((ulong)timestamp, Is.Zero);
+        var timestamp = new NtpTimestamp(value);
+        var dto = timestamp.ToDateTimeOffset(reference);
+        Assert.That(dto, Is.EqualTo(expected));
     }
 
-    [Test]
-    public void OneSecondAfterEpoch_ReturnsCorrectValue()
+    static IEnumerable<TestCaseData> FromDateTimeOffsetSource()
+        => TimestampsSource(includeImpreciseDTOs: false).Select(x =>
+            new TestCaseData(x.valueDTO, x.valueULong)
+                .SetArgDisplayNames(x.name));
+    [TestCaseSource(nameof(FromDateTimeOffsetSource))]
+    public void FromDateTimeOffsetTests(DateTimeOffset value, ulong expected)
     {
-        var dto = new DateTimeOffset(1900, 1, 1, 0, 0, 1, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        using (Assert.EnterMultipleScope())
+        var timestamp = new NtpTimestamp(value);
+        Assert.That(timestamp.Value, Is.EqualTo(expected));
+    }
+
+    static IEnumerable<(ulong valueULong, DateTimeOffset valueDTO, DateTimeOffset reference, string name)> TimestampsSource(bool includeImpreciseDTOs)
+    {
+        yield return (0x0000000000000000, NtpTimestamp.NtpEpoch, NtpTimestamp.NtpEpoch, "NTP epoch");
+        yield return (0x0000000100000000, DTO(1900, 1, 1, 0, 0, second: 1), NtpTimestamp.NtpEpoch, "NTP epoch +1s");
+        yield return (0x0000003C00000000, DTO(1900, 1, 1, 0, minute: 1, 0), NtpTimestamp.NtpEpoch, "NTP epoch +1m");
+        yield return (0x00000E1000000000, DTO(1900, 1, 1, hour: 1, 0, 0), NtpTimestamp.NtpEpoch, "NTP epoch +1h");
+        yield return (0x0001518000000000, DTO(1900, 1, day: 2, 0, 0, 0), NtpTimestamp.NtpEpoch, "NTP epoch +1d");
+        yield return (0x0000000080000000, DTO(1900, 1, 1, 0, 0, 0, ms: 500), NtpTimestamp.NtpEpoch, "NTP epoch +500ms");
+        yield return (0x0000000040000000, DTO(1900, 1, 1, 0, 0, 0, ms: 250), NtpTimestamp.NtpEpoch, "NTP epoch +250ms");
+        yield return (0x000000001999999A, DTO(1900, 1, 1, 0, 0, 0, ms: 100), NtpTimestamp.NtpEpoch, "NTP epoch +100ms");
+
+        // 2136 => <2068, 2204>
+        // 2272 => <2204, 2340>
+        yield return (0xBC189B3F00000000, DTO(2000, 1, 1, 15, 26, 55), DTO(1990, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 (1990)");
+        yield return (0xBC189B3F00000000, DTO(2000, 1, 1, 15, 26, 55), DTO(2000, 1, 1, 15, 26, 55), "2000-01-01 15:26:55 (2000 [exact])");
+        yield return (0xBC189B3F00000000, DTO(2000, 1, 1, 15, 26, 55), DTO(2010, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 (2010)");
+        yield return (0xBC189B3F00000000, NE(DTO(2000, 1, 1, 15, 26, 55)), DTO(2070, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 +E1 (2070)");
+        yield return (0xBC189B3F00000000, NE(DTO(2000, 1, 1, 15, 26, 55)), DTO(2200, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 +E1 (2200)");
+        yield return (0xBC189B3F00000000, NE(NE(DTO(2000, 1, 1, 15, 26, 55))), DTO(2250, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 +E2 (2250)");
+        // below -68 for era 0
+        yield return (0xBC189B3F00000000, DTO(2000, 1, 1, 15, 26, 55), DTO(1910, 1, 1, 0, 0, 0), "2000-01-01 15:26:55 (1910)");
+
+        if (includeImpreciseDTOs)
         {
-            Assert.That(timestamp >> 32, Is.EqualTo(1));
-            Assert.That(timestamp & 0xFFFFFFFF, Is.Zero);
+            yield return (0x0000000000418937, DTO(1900, 1, 1, 0, 0, 0).AddTicks(9999), NtpTimestamp.NtpEpoch, "fractions: +9999 ticks");
+            yield return (0x00000000000001AD, DTO(1900, 1, 1, 0, 0, 0).AddTicks(0), NtpTimestamp.NtpEpoch, "fractions: <0 ticks [01AD]");
+            yield return (0x00000000000000D6, DTO(1900, 1, 1, 0, 0, 0).AddTicks(0), NtpTimestamp.NtpEpoch, "fractions: <0 ticks [00D6]");
+            yield return (0x0000000000000863, DTO(1900, 1, 1, 0, 0, 0).AddTicks(4), NtpTimestamp.NtpEpoch, "fractions: +4 ticks");
+            yield return (0x00000000FFFFFCD2, DTO(1900, 1, 1, 0, 0, 0, ms: 999, us: 999).AddTicks(8), NtpTimestamp.NtpEpoch, "fractions: DTO rounding [FCD2]");
+            yield return (0x00000000FFFFFCD3, DTO(1900, 1, 1, 0, 0, 0, ms: 999, us: 999).AddTicks(8), NtpTimestamp.NtpEpoch, "fractions: DTO rounding [FCD3]");
         }
     }
 
-    [Test]
-    public void WithFraction_EncodesCorrectly()
-    {
-        var dto = new DateTimeOffset(1900, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMilliseconds(500);
-        var timestamp = new NtpTimestamp(dto);
-        var seconds = timestamp >> 32;
-        var fraction = timestamp & 0xFFFFFFFF;
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(seconds, Is.Zero);
-            Assert.That(fraction, Is.EqualTo(2147483647UL));
-        }
-    }
+    static DateTimeOffset DTO(int year, int month, int day, int hour, int minute, int second, int ms = 0, int us = 0)
+        => new(year, month, day, hour, minute, second, ms, us, TimeSpan.Zero);
 
-    [Test]
-    public void KnownValue_January1_2000()
-    {
-        var dto = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        var seconds = timestamp >> 32;
-        var expectedSeconds = (ulong)(dto - NtpTimestamp.NtpEpoch).TotalSeconds;
-        Assert.That(seconds, Is.EqualTo(expectedSeconds));
-    }
-
-    [Test]
-    public void KnownValue_February7_2036_6_28_16()
-    {
-        var dto = new DateTimeOffset(2036, 2, 7, 6, 28, 16, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        var seconds = timestamp >> 32;
-        Assert.That(seconds, Is.Zero);
-    }
-
-    [Test]
-    public void EraWrapAround_FirstSecondOfEra1()
-    {
-        var dto = new DateTimeOffset(2036, 2, 7, 6, 28, 16, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        var seconds = timestamp >> 32;
-        Assert.That(seconds, Is.LessThan(uint.MaxValue));
-    }
-
-    [Test]
-    public void RandomValue_2024_06_15()
-    {
-        var dto = new DateTimeOffset(2024, 6, 15, 14, 30, 45, 123, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        var expectedSeconds = (dto - NtpTimestamp.NtpEpoch).TotalSeconds;
-        var wireSeconds = (ulong)expectedSeconds % (1UL << 32);
-        Assert.That(timestamp >> 32, Is.EqualTo(wireSeconds));
-    }
-
-    [Test]
-    public void RandomValue_1970_01_01()
-    {
-        var dto = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var timestamp = new NtpTimestamp(dto);
-        Assert.That(timestamp >> 32, Is.EqualTo(2208988800UL));
-    }
-
-    [Test]
-    public void BeforeEpoch_ThrowsException()
-    {
-        var dto = new DateTimeOffset(1899, 12, 31, 23, 59, 59, TimeSpan.Zero);
-        Assert.Throws<ArgumentOutOfRangeException>(() => new NtpTimestamp(dto));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_Zero_WithEra0Reference_ReturnsNtpEpoch()
-    {
-        var result = new NtpTimestamp(0UL).ToDateTimeOffset(new DateTimeOffset(1950, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        Assert.That(result, Is.EqualTo(NtpTimestamp.NtpEpoch));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_OneSecond_WithEra0Reference_ReturnsCorrectDateTime()
-    {
-        var result = new NtpTimestamp(1UL << 32).ToDateTimeOffset(new DateTimeOffset(1950, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        Assert.That(result, Is.EqualTo(new DateTimeOffset(1900, 1, 1, 0, 0, 1, TimeSpan.Zero)));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_WithFraction_DecodesCorrectly()
-    {
-        var result = new NtpTimestamp(2147483648UL).ToDateTimeOffset(new DateTimeOffset(1950, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        Assert.That(result, Is.EqualTo(new DateTimeOffset(1900, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMilliseconds(500)));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_Era0Timestamp_WithEra1Reference_SelectsCorrectEra()
-    {
-        var result = new NtpTimestamp(100UL << 32).ToDateTimeOffset(new DateTimeOffset(2050, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        Assert.That(result.Year, Is.GreaterThanOrEqualTo(2036));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_Era1Timestamp_WithEra0Reference_SelectsCorrectEra()
-    {
-        var result = new NtpTimestamp(100UL << 32).ToDateTimeOffset(new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        Assert.That(result.Year, Is.GreaterThanOrEqualTo(2036));
-    }
-
-    [Test]
-    public void ToDateTimeOffset_NearEraWrap_ClosestToReference()
-    {
-        var result = new NtpTimestamp(0UL << 32).ToDateTimeOffset(new DateTimeOffset(2036, 2, 7, 6, 28, 15, TimeSpan.Zero));
-        Assert.That(result.Year, Is.EqualTo(2036));
-    }
-
-    [Test]
-    public void MaxDateTimeOffset_DoesNotOverflow()
-    {
-        Assert.DoesNotThrow(() => new NtpTimestamp(DateTimeOffset.MaxValue.ToUniversalTime()));
-    }
-
-    [Test]
-    public void MaxUInt64_DoesNotThrow()
-    {
-        Assert.DoesNotThrow(() => new NtpTimestamp(ulong.MaxValue));
-    }
+    static DateTimeOffset NE(DateTimeOffset dto)
+        => dto.AddSeconds((ulong)NtpTimestamp.EraSeconds);
 }

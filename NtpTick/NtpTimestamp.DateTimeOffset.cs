@@ -13,43 +13,39 @@ partial struct NtpTimestamp
 
     public DateTimeOffset ToDateTimeOffset(DateTimeOffset reference)
     {
+        var totalSeconds = (reference - NtpEpoch).TotalSeconds;
+        if (totalSeconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(reference), "The value must be on or after January 1, 1900 UTC.");
+
+        var referenceSeconds = (ulong)totalSeconds;
         var seconds = (uint)(_value >> 32);
-        var fraction = (uint)_value;
+        var baseSeconds = (referenceSeconds & 0xFFFFFFFF00000000UL) | seconds;
 
-        var fractionSeconds = fraction / FractionScale;
-        var referenceSeconds = (ulong)(reference - NtpEpoch).TotalSeconds;
-        var referenceEra = referenceSeconds / EraSeconds;
-
-        var best = NtpEpoch;
-        var bestDiff = double.MaxValue;
-        for (var era = referenceEra > 0 ? referenceEra - 1 : 0; era <= referenceEra + 1; era++)
+        if (baseSeconds > referenceSeconds + HalfEraSeconds)
         {
-            var fullSeconds = era * EraSeconds + seconds;
-
-            var candidate = NtpEpoch
-                .AddSeconds(fullSeconds)
-                .AddSeconds(fractionSeconds);
-
-            var diff = Math.Abs((candidate - reference).TotalSeconds);
-
-            if (diff < bestDiff)
-            {
-                bestDiff = diff;
-                best = candidate;
-            }
+            if (baseSeconds >= EraSeconds)
+                baseSeconds -= EraSeconds;
         }
-        return best;
+        else if (baseSeconds + HalfEraSeconds < referenceSeconds)
+        {
+            baseSeconds += EraSeconds;
+        }
+
+        var fraction = (uint)_value;
+        var fractionSeconds = fraction / FractionScale;
+
+        return NtpEpoch.AddSeconds(baseSeconds + fractionSeconds);
     }
 
     static ulong FromDateTimeOffset(DateTimeOffset dto)
     {
         var totalSeconds = (dto - NtpEpoch).TotalSeconds;
         if (totalSeconds < 0)
-            throw new ArgumentOutOfRangeException(nameof(dto), "The DateTimeOffset must be on or after January 1, 1900 UTC.");
+            throw new ArgumentOutOfRangeException(nameof(dto), "The value must be on or after January 1, 1900 UTC.");
 
-        var fullSeconds = (ulong)Math.Floor(totalSeconds);
+        var fullSeconds = (ulong)totalSeconds;
         var seconds = (uint)fullSeconds % EraSeconds;
-        var fraction = (uint)((totalSeconds - Math.Floor(totalSeconds)) * FractionScale);
+        var fraction = (uint)Math.Round((totalSeconds - fullSeconds) * FractionScale);
         return (seconds << 32) | fraction;
     }
 }

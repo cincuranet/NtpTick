@@ -5,6 +5,7 @@ namespace NtpTick;
 public readonly partial struct NtpTimestamp : IEquatable<NtpTimestamp>, IComparable<NtpTimestamp>
 {
     public const ulong EraSeconds = 1UL << 32;
+    public const ulong HalfEraSeconds = EraSeconds / 2;
     public const double FractionScale = uint.MaxValue;
 
     readonly ulong _value;
@@ -13,6 +14,8 @@ public readonly partial struct NtpTimestamp : IEquatable<NtpTimestamp>, ICompara
     {
         _value = value;
     }
+
+    public ulong Value => _value;
 
     public override bool Equals([NotNullWhen(true)] object? obj)
         => obj is NtpTimestamp other && Equals(other);
@@ -32,7 +35,7 @@ public readonly partial struct NtpTimestamp : IEquatable<NtpTimestamp>, ICompara
     public static implicit operator NtpTimestamp(ulong value)
         => new(value);
 
-    public static bool operator ==(NtpTimestamp lhs, NtpTimestamp rhs) 
+    public static bool operator ==(NtpTimestamp lhs, NtpTimestamp rhs)
         => lhs.Equals(rhs);
 
     public static bool operator !=(NtpTimestamp lhs, NtpTimestamp rhs)
@@ -41,12 +44,12 @@ public readonly partial struct NtpTimestamp : IEquatable<NtpTimestamp>, ICompara
     public static bool operator <(NtpTimestamp lhs, NtpTimestamp rhs)
         => lhs.CompareTo(rhs) < 0;
 
-    public static bool operator <=(NtpTimestamp lhs, NtpTimestamp rhs) 
+    public static bool operator <=(NtpTimestamp lhs, NtpTimestamp rhs)
         => lhs.CompareTo(rhs) <= 0;
 
-    public static bool operator >(NtpTimestamp lhs, NtpTimestamp rhs) 
+    public static bool operator >(NtpTimestamp lhs, NtpTimestamp rhs)
         => lhs.CompareTo(rhs) > 0;
 
-    public static bool operator >=(NtpTimestamp lhs, NtpTimestamp rhs) 
+    public static bool operator >=(NtpTimestamp lhs, NtpTimestamp rhs)
         => lhs.CompareTo(rhs) >= 0;
 }

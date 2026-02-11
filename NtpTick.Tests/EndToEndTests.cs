@@ -11,7 +11,7 @@ public class EndToEndTests
     [OneTimeSetUp]
     public void Setup()
     {
-        _client = new SimpleNtpClient(new IPEndPoint(IPAddress.Parse("2001:67c:d74:66::71be"), 123));
+        _client = new SimpleNtpClient("time.cincura.net");
     }
 
     [Test]

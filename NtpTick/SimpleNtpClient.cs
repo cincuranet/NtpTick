@@ -5,16 +5,22 @@ namespace NtpTick;
 
 public class SimpleNtpClient
 {
-    readonly IPEndPoint _remoteEP;
+    public const int DefaultPort = 123;
 
-    public SimpleNtpClient(IPEndPoint remoteEP)
+    readonly EndPoint _remoteEP;
+
+    public SimpleNtpClient(EndPoint remoteEP)
     {
         _remoteEP = remoteEP;
     }
 
+    public SimpleNtpClient(string host, int port = DefaultPort)
+        : this(new DnsEndPoint(host, port))
+    { }
+
     public async Task<NtpPacket> Send(NtpPacket packet, CancellationToken cancellationToken = default)
     {
-        using (var socket = new Socket(_remoteEP.AddressFamily, SocketType.Dgram, ProtocolType.Udp))
+        using (var socket = new Socket(SocketType.Dgram, ProtocolType.Udp))
         {
             await socket.ConnectAsync(_remoteEP, cancellationToken);
 

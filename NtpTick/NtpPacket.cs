@@ -88,6 +88,9 @@ public class NtpPacket
         };
     }
 
+    /// <summary>
+    /// Calculates the estimated time at the destination adjusted for network delays.
+    /// </summary>
     public DateTimeOffset CalculateSynchronizedTime(DateTimeOffset destinationTimestamp, DateTimeOffset? referenceTimestamp = null)
     {
         referenceTimestamp ??= DateTimeOffset.UtcNow;
@@ -101,6 +104,9 @@ public class NtpPacket
         return destinationTimestamp.Add(offset);
     }
 
+    /// <summary>
+    /// Calculates the estimated round-trip network delay.
+    /// </summary>
     public TimeSpan CalculateRoundTripDelay(DateTimeOffset destinationTimestamp, DateTimeOffset? referenceTimestamp = null)
     {
         referenceTimestamp ??= DateTimeOffset.UtcNow;

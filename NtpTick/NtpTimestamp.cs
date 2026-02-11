@@ -2,6 +2,10 @@
 
 namespace NtpTick;
 
+/// <summary>
+/// Represents a 64-bit NTP timestamp, consisting of a 32-bit seconds field and a 32-bit
+/// fractional seconds field, as defined by the NTP specification (RFC 5905).
+/// </summary>
 public readonly partial struct NtpTimestamp : IEquatable<NtpTimestamp>, IComparable<NtpTimestamp>
 {
     public const ulong EraSeconds = 1UL << 32;

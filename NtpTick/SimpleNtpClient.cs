@@ -46,7 +46,6 @@ public class SimpleNtpClient
         }
     }
 
-
     /// <summary>
     /// Sends an NTP packet and from response calculates what the local time should be at the moment the response was received.
     /// </summary>

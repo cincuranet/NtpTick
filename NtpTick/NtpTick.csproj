@@ -12,7 +12,7 @@
     <Description>A simple NTP client library for .NET.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageTags>ntp;time;network</PackageTags>
+    <PackageTags>ntp;time;network;timing</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <RepositoryUrl>https://github.com/cincuranet/NtpTick</RepositoryUrl>
